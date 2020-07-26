@@ -6,47 +6,59 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+df = pd.read_csv("titanic.csv")
 
-create_postgres_table1 = '''
-CREATE TABLE IF NOT EXISTS titanic(
-    Survived INT,
-    Pclass INT,
-    Name TEXT,
-    Sex TEXT,
-    Age Real,
-    SiblingsSpousesAboard INT,
-    ParentsChilderenAboard INT,
-    Fare Real
-)
-'''
+conn = sqlite3.connect("titanic.sqlite3")
+curs = conn.cursor()
+#df.to_sql('titanic', con=conn)
+print(curs.execute("SELECT COUNT(*) FROM titanic;").fetchall())
+
 dbname = os.getenv('dbname')
 user = os.getenv('user')
 password = os.getenv('password')
 host = os.getenv('host')
 
-CONN = psycopg2.connect(dbname= dbname, user= user, password= password, host= host)
-cursor = CONN.cursor()
+pg_conn = psycopg2.connect(dbname=dbname, user=user,
+                           password=password, host=host)
 
-create_postgres_table1 = '''
-CREATE TABLE IF NOT EXISTS titanic(
-    Survived INT,
-    Pclass INT,
-    Name TEXT,
-    Sex TEXT,
-    Age Real,
-    SiblingsSpousesAboard INT,
-    ParentsChilderenAboard INT,
-    Fare Real
-)
-'''
+pg_curs = pg_conn.cursor()
 
-cursor.execute(create_postgres_table1)
+sl_conn = sqlite3.connect('titanic.sqlite3')
+sl_curs = sl_conn.cursor()
 
-f =open(r"titanic.csv","r")
-next(f)
-cursor.copy_from(f,'titanic',sep=',',null='')
-f.close()
+pg_curs.execute("""DROP TABLE IF EXISTS titanic;""")
+pg_conn.commit()
 
-query = "ALTER TABLE titanic ADD COLUMN id SERIAL PRIMARY KEY"
-cursor.execute(query)
-CONN.commit()
+create_titanic_table = """
+CREATE TABLE titanic (
+  index SERIAL PRIMARY KEY,
+  Survived INT,
+  Pclass INT,
+  Name TEXT,
+  Sex TEXT,
+  Age REAL,
+  Siblings_Spouses_Aboard INT,
+  Parents_Children_Aboard INT,
+  Fare REAL
+);
+"""
+
+pg_curs = pg_conn.cursor()
+pg_curs.execute(create_titanic_table)
+pg_conn.commit()
+
+sl_curs.execute(""" UPDATE titanic
+SET Name = REPLACE(Name, "'", ' '); """)
+
+get_person = 'SELECT * FROM titanic;'
+people = sl_curs.execute(get_person).fetchall()
+
+
+for person in people:
+    insert_person = """
+    INSERT INTO titanic
+    (Survived,Pclass,Name,Sex,Age,Siblings_Spouses_Aboard,Parents_Children_Aboard,fare)
+    VALUES """ + str(person[1:]) + ";"
+    pg_curs.execute(insert_person)
+
+pg_conn.commit()
